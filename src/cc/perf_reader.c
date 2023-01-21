@@ -221,7 +221,6 @@ void perf_reader_event_read(struct perf_reader *reader) {
 }
 
 int perf_reader_poll(int num_readers, struct perf_reader **readers, int timeout) {
-  struct pollfd pfds[num_readers];
   struct epoll_event events[num_readers];
   int i;
 

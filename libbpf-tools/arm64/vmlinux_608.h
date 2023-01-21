@@ -8829,6 +8829,7 @@ enum bpf_map_type {
 	BPF_MAP_TYPE_INODE_STORAGE = 28,
 	BPF_MAP_TYPE_TASK_STORAGE = 29,
 	BPF_MAP_TYPE_BLOOM_FILTER = 30,
+	BPF_MAP_TYPE_CGRP_STORAGE = 31,
 };
 
 enum bpf_prog_type {
