@@ -16,6 +16,7 @@
 
 #include <inttypes.h>
 #include <poll.h>
+#include <sys/epoll.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -221,16 +222,23 @@ void perf_reader_event_read(struct perf_reader *reader) {
 
 int perf_reader_poll(int num_readers, struct perf_reader **readers, int timeout) {
   struct pollfd pfds[num_readers];
+  struct epoll_event events[num_readers];
   int i;
 
+  int epollfd;
+  epollfd = epoll_create1(EPOLL_CLOEXEC);
+
   for (i = 0; i <num_readers; ++i) {
-    pfds[i].fd = readers[i]->fd;
-    pfds[i].events = POLLIN;
+    struct epoll_event event;
+    event.data.fd = readers[i]->fd;
+    event.events = EPOLLIN;
+    events[i] = event;
+    epoll_ctl(epollfd, EPOLL_CTL_ADD, readers[i]->fd, &event);
   }
 
-  if (poll(pfds, num_readers, timeout) > 0) {
+  if (epoll_wait(epollfd, events, num_readers, timeout) > 0) {
     for (i = 0; i < num_readers; ++i) {
-      if (pfds[i].revents & POLLIN)
+      if (events[i].events & EPOLLIN)
         perf_reader_event_read(readers[i]);
     }
   }
