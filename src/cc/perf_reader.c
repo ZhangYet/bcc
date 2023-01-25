@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <fcntl.h>
 #include <inttypes.h>
 #include <poll.h>
 #include <sys/epoll.h>
@@ -229,8 +230,9 @@ int perf_reader_poll(int num_readers, struct perf_reader **readers, int timeout)
 
   for (i = 0; i <num_readers; ++i) {
     struct epoll_event event;
+    fcntl(readers[i]->fd, F_SETFL, flags | O_NONBLOCK);
     event.data.fd = readers[i]->fd;
-    event.events = EPOLLIN;
+    event.events = EPOLLIN | EPOLLET;
     events[i] = event;
     epoll_ctl(epollfd, EPOLL_CTL_ADD, readers[i]->fd, &event);
   }
