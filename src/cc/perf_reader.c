@@ -244,6 +244,8 @@ int perf_reader_poll(int num_readers, struct perf_reader **readers, int timeout)
         perf_reader_event_read(readers[i]);
     }
   }
+  close(epollfd);
+
   return 0;
 }
 
