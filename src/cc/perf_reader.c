@@ -230,6 +230,7 @@ int perf_reader_poll(int num_readers, struct perf_reader **readers, int timeout)
 
   for (i = 0; i <num_readers; ++i) {
     struct epoll_event event;
+    int flags = fcntl(readers[i]->fd, F_GETFL, 0);
     fcntl(readers[i]->fd, F_SETFL, flags | O_NONBLOCK);
     event.data.fd = readers[i]->fd;
     event.events = EPOLLIN | EPOLLET;
