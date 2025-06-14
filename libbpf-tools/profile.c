@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include <string.h>
 #include <unistd.h>
 #include <time.h>
 #include <linux/perf_event.h>
@@ -565,7 +566,6 @@ int main(int argc, char **argv)
 		.parser = parse_arg,
 		.doc = argp_program_doc,
 	};
-	struct bpf_link *links[MAX_CPU_NR] = {};
 	struct profile_bpf *obj;
 	int pids_fd, tids_fd;
 	int err, i;
@@ -588,12 +588,11 @@ int main(int argc, char **argv)
 		       strerror(-nr_cpus));
 		return 1;
 	}
-	if (nr_cpus > MAX_CPU_NR) {
-		fprintf(stderr, "the number of cpu cores is too big, please "
-			"increase MAX_CPU_NR's value and recompile");
+	struct bpf_link **links = calloc(nr_cpus, sizeof(struct bpf_link *));
+	if (!links) {
+		fprintf(stderr, "calloc %s\n", strerror(errno));
 		return 1;
 	}
-
 	obj = profile_bpf__open();
 	if (!obj) {
 		fprintf(stderr, "failed to open BPF object\n");
@@ -684,6 +683,7 @@ cleanup:
 	if (ksyms)
 		ksyms__free(ksyms);
 	profile_bpf__destroy(obj);
+	free(links);
 
 	return err != 0;
 }
