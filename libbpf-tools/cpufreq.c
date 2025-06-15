@@ -15,6 +15,7 @@
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
 #include "cpufreq.h"
+#include "bpftool/libbpf/src/libbpf.h"
 #include "cpufreq.skel.h"
 #include "trace_helpers.h"
 
@@ -132,11 +133,22 @@ static void sig_handler(int sig)
 {
 }
 
-static int init_freqs_mhz(__u32 *freqs_mhz, struct bpf_link *links[])
+static void *resize_map(struct bpf_map *map, size_t elem_cnt)
+{
+	size_t elem_sz = bpf_map__value_size(map);
+	int err = bpf_map__set_value_size(map, elem_cnt * elem_sz);
+	if (err)
+		return NULL;
+
+	return bpf_map__initial_value(map, &elem_sz);
+}
+
+static int init_freqs_mhz(struct bpf_map *freqs_mhz, struct bpf_link *links[])
 {
 	char path[64];
 	FILE *f;
 	int i;
+	__u32 tmp;
 
 	for (i = 0; i < nr_cpus; i++) {
 		if (!links[i]) {
@@ -151,18 +163,19 @@ static int init_freqs_mhz(__u32 *freqs_mhz, struct bpf_link *links[])
 			fprintf(stderr, "failed to open '%s': %s\n", path,
 				strerror(errno));
 			return -1;
-		}
-		if (fscanf(f, "%u\n", &freqs_mhz[i]) != 1) {
+                }
+		if (fscanf(f, "%u\n", &tmp) != 1) {
 			fprintf(stderr, "failed to parse '%s': %s\n", path,
 				strerror(errno));
 			fclose(f);
 			return -1;
 		}
-		/*
-		 * scaling_cur_freq is in kHz. To be handled with
-		 * a small data size, it's converted in mHz.
-		 */
-		freqs_mhz[i] /= 1000;
+                /*
+                 * scaling_cur_freq is in kHz. To be handled with
+                 * a small data size, it's converted in mHz.
+                 */
+		tmp /= 1000;
+		bpf_map__update_elem(freqs_mhz, &i, sizeof(int), &tmp, sizeof(__u32), 0);
 		fclose(f);
 	}
 
@@ -224,7 +237,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	obj = cpufreq_bpf__open_and_load();
+	obj = cpufreq_bpf__open();
 	if (!obj) {
 		fprintf(stderr, "failed to open and/or load BPF object\n");
 		return 1;
@@ -235,8 +248,15 @@ int main(int argc, char **argv)
 		goto cleanup;
 	}
 
-	obj->bss->filter_cg = env.cg;
+        obj->bss->filter_cg = env.cg;
 
+        if (!resize_map(obj->maps.data_freqs_mhz, nr_cpus))
+		goto cleanup;
+        err = cpufreq_bpf__load(obj);
+        if (err) {
+		fprintf(stderr, "couldnot load");
+		goto cleanup;
+        }
 	/* update cgroup path fd to map */
 	if (env.cg) {
 		idx = 0;
@@ -255,7 +275,7 @@ int main(int argc, char **argv)
 	err = open_and_attach_perf_event(env.freq, obj->progs.do_sample, links);
 	if (err)
 		goto cleanup;
-	err = init_freqs_mhz(obj->bss->freqs_mhz, links);
+	err = init_freqs_mhz(obj->maps.data_freqs_mhz, links);
 	if (err) {
 		fprintf(stderr, "failed to init freqs\n");
 		goto cleanup;

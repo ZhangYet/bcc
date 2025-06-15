@@ -6,7 +6,7 @@
 #include "cpufreq.h"
 #include "maps.bpf.h"
 
-__u32 freqs_mhz[MAX_CPU_NR] = {};
+static __u32 freqs_mhz[1] SEC(".data.freqs_mhz");
 static struct hist zero;
 struct hist syswide = {};
 bool filter_cg = false;
